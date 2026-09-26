@@ -1,0 +1,42 @@
+name: BB pre-restore Husky proof
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  proof:
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '@claude bb-husky-')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted base
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Activate trusted-base Husky
+        if: ${{ !contains(github.event.comment.body, 'bb-husky-no-install') }}
+        run: |
+          npm ci --ignore-scripts
+          npx --no-install husky
+          test "$(git config --local core.hooksPath)" = ".husky/_"
+
+      - name: Disable hooks for direct-denied control
+        if: ${{ contains(github.event.comment.body, 'bb-husky-null') }}
+        run: git config --local core.hooksPath /dev/null
+
+      - name: Exercise action checkout
+        uses: anthropics/claude-code-action@cfc3eb22bfed5c26ef66e3223c982af27e4524de
+        env:
+          ANTHROPIC_BASE_URL: http://127.0.0.1:9
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          anthropic_api_key: ${{ secrets.BB_HOOK_CANARY }}
+          trigger_phrase: "@claude"
